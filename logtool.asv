@@ -260,28 +260,38 @@ save('LogData_export');
 
 %% Step 4: Plot histogram of logging intervals from table
 
-% Drop major outliers using Z-score
-% Calculate the mean and standard deviation of the data
-meanData = mean(LogData_export.("Logging Duration (Seconds)"));
-stdData = std(LogData_export.("Logging Duration (Seconds)"));
+% Drop major outliers using IQR methods
+% Sample table with some outliers
+T = table([1.1; 2.3; 2.9; 4.0; 100; 5.2; 6.1; 3.4; 50; 200; 8.0], ...
+    {'A'; 'B'; 'C'; 'D'; 'E'; 'F'; 'G'; 'H'; 'I'; 'J'; 'K'}, ...
+    'VariableNames', {'Data', 'Category'});
 
-% Define the threshold for outliers (e.g., 3 standard deviations from the mean)
-threshold = 3;
+% Extract the numeric variable (assuming the variable name is 'Data')
+data = T.Data;
 
-% Calculate the Z-scores
-zScores = (LogData_export.("Logging Duration (Seconds)") - meanData) / stdData;
+% Calculate the first quartile (Q1), third quartile (Q3), and IQR
+Q1 = quantile(data, 0.25);
+Q3 = quantile(data, 0.75);
+IQR = Q3 - Q1;
 
-% Identify rows with Z-scores greater than the threshold (outliers)
-outlierRows = abs(zScores) > threshold;
+% Define the lower and upper bounds for non-outliers
+lowerBound = Q1 - 1.5 * IQR;
+upperBound = Q3 + 1.5 * IQR;
+
+% Identify rows that are outliers (outside the bounds)
+outlierRows = data < lowerBound | data > upperBound;
 
 % Remove the rows that are outliers
-LogData_export_noOutliers = LogData_export(~outlierRows, :);
+T_noOutliers = T(~outlierRows, :);
 
-% Plot
-nbins = sqrt(height(LogData_export_noOutliers));
+% Display the table after removing outliers
+disp(T_noOutliers);
+
+
+nbins = sqrt(height(LogData_export));
 
 figure;  % Create a new figure window
-histogram(LogData_export_noOutliers.("Logging Duration (Seconds)"), floor(nbins));  % Plot histogram
+histogram(LogData_export.("Logging Duration (Seconds)"), floor(nbins));  % Plot histogram
 
 % Add labels and title to the plot
 xlabel('Logging Duration (Seconds)');
@@ -290,16 +300,3 @@ ylabel('Frequency');
 
 % Display grid for better readability
 grid on;
-
-% Define the threshold value
-threshold = 45;  % Set the value you want to compare against
-
-% Find how many values are greater than the threshold
-aboveThreshold = LogData_export_noOutliers.("Logging Duration (Seconds)") > threshold;
-
-% Calculate the percentage of values above the threshold
-percentageAboveThreshold = sum(aboveThreshold) / height(LogData_export_noOutliers) * 100;
-
-% Display the result
-text(0.5, max(ylim) * 0.95, sprintf('%% of logging intervals > %.0f s: %.2f%%', threshold, percentageAboveThreshold), ...
-    'FontSize', 12, 'Color', 'black');
