@@ -1,14 +1,13 @@
 # A list of To-Do's that can be checked off
 
 ### Todo
-
-- [ ] Add in functionality to save the logging intervals to a .mat file (as table)
--   [ ]   Include creator
-- [ ] Build in input boxes for metadata
+- [ ] Work in time of day
 
 ### In Progress
 
-- [ ] 
+- [ ] Add in functionality to save the logging intervals to a .mat file (as table)
+-   [x]   Include creator
+-   [ ]   Add full record length to table
 
 ### Done ✓
 
