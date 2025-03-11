@@ -18,6 +18,13 @@ LogData_export = table();
 %% Step 1: Choose prh file(s) to process
 [file, path] = uigetfile('*.mat', 'Select a .mat file', 'MultiSelect', 'on');
 
+% uigetfile returns a char array if you select just 1 file but the rest of the
+% code expects a celery of char arrays, so convert if that is the case. there
+% might be a more elegant way to do this...
+if(class(file) == 'char')
+    file = {file};
+end
+
 creator = input('Enter your name (as the creator of these outputs): \n', 's');  % 's' for string input
 
 loc = input('Enter the general location these tags were deployed in (i.e., Cape Hatteras): \n', 's');  % 's' for string input
@@ -280,26 +287,32 @@ LogData_export_noOutliers = LogData_export(~outlierRows, :);
 % Plot
 nbins = sqrt(height(LogData_export_noOutliers));
 
-figure;  % Create a new figure window
-histogram(LogData_export_noOutliers.("Logging Duration (Seconds)"), floor(nbins));  % Plot histogram
-
-% Add labels and title to the plot
-xlabel('Logging Duration (Seconds)');
-ylabel('Frequency');
-%set(gca, 'XScale', 'log')
-
-% Display grid for better readability
-grid on;
-
-% Define the threshold value
-threshold = 45;  % Set the value you want to compare against
-
-% Find how many values are greater than the threshold
-aboveThreshold = LogData_export_noOutliers.("Logging Duration (Seconds)") > threshold;
-
-% Calculate the percentage of values above the threshold
-percentageAboveThreshold = sum(aboveThreshold) / height(LogData_export_noOutliers) * 100;
-
-% Display the result
-text(0.5, max(ylim) * 0.95, sprintf('%% of logging intervals > %.0f s: %.2f%%', threshold, percentageAboveThreshold), ...
-    'FontSize', 12, 'Color', 'black');
+% if no logging was found nbins will be 0 and histogram will fail so only plot
+% if there is some data. otherwise throw a warning to alert the user.
+if(nbins > 0)
+    figure;  % Create a new figure window
+    histogram(LogData_export_noOutliers.("Logging Duration (Seconds)"), floor(nbins));  % Plot histogram
+    
+    % Add labels and title to the plot
+    xlabel('Logging Duration (Seconds)');
+    ylabel('Frequency');
+    %set(gca, 'XScale', 'log')
+    
+    % Display grid for better readability
+    grid on;
+    
+    % Define the threshold value
+    threshold = 45;  % Set the value you want to compare against
+    
+    % Find how many values are greater than the threshold
+    aboveThreshold = LogData_export_noOutliers.("Logging Duration (Seconds)") > threshold;
+    
+    % Calculate the percentage of values above the threshold
+    percentageAboveThreshold = sum(aboveThreshold) / height(LogData_export_noOutliers) * 100;
+    
+    % Display the result
+    text(0.5, max(ylim) * 0.95, sprintf('%% of logging intervals > %.0f s: %.2f%%', threshold, percentageAboveThreshold), ...
+        'FontSize', 12, 'Color', 'black');
+else
+    warning('probably no logging was detected, nothing to plot');
+end
