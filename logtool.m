@@ -1,4 +1,5 @@
 % A tool to extract & save logging periods
+function [LogData_export] = logtool()
 
 %% Setting up global parameters
 clear; close all; clc
@@ -42,7 +43,23 @@ dropdown = uidropdown(fig, ...
     'Position', [10, 325, 120, 30], ...  % Position of the dropdown
     'Editable','on');  
 
+% add a button to acknowledge, close the window, save the value
+uibutton(fig, 'Position', [20 280 65 30], 'Text', 'OK', 'ButtonPushedFcn', @closebuttonfunction);
+
+% init tagtype
 tagtype = dropdown.Value;
+
+% wait for user to close the fig
+uiwait(fig);
+
+% called when close button selected-- saves tagtype
+function closebuttonfunction(~, ~)
+    % save outputs
+    tagtype = dropdown.Value;
+
+    % close the fig and release uiwait
+    close(fig);
+end
 
 %% Step 2: Run workhorse loop
 for i = 1:length(file)
@@ -315,4 +332,8 @@ if(nbins > 0)
         'FontSize', 12, 'Color', 'black');
 else
     warning('probably no logging was detected, nothing to plot');
+end
+
+
+%% end the function
 end
