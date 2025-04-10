@@ -17,6 +17,12 @@ min_log = 10;
 % Define a theoretical threshold for logging that you are intersted in
 % (e.g., 45 seconds)
 threshold = 45;  
+
+% Set a threshold in m/s for how much depth accumulatoin you will allow
+% during a logging period. This is to help prevent detection of periods
+% when the animal is really not loggin but doing little blips at the
+% surface...
+surf_da_thres = 1;
     
 LogData_export = table();
 
@@ -36,32 +42,36 @@ loc = input('Enter the general location these tags were deployed in (i.e., Cape 
 
 % Prompt the user to choose the type of file
 % Create a figure window
-fig = uifigure('Position', [100, 100, 250, 400]); %[left right width height]
+fig = uifigure('Position', [100, 100, 250, 400]);
 
-% Add a label to display the chosen option
-label = uilabel(fig, 'Position', [10, 360 250, 30], 'Text', 'Select your tag type from the dropdown:');
+% Add a label
+uilabel(fig, 'Position', [10, 360, 250, 30], 'Text', 'Select your tag type from the dropdown:');
 
-% Create a dropdown list (popup menu)
+% Create a dropdown
 dropdown = uidropdown(fig, ...
-    'Items', {'CATS', 'D2', 'D3', 'D4', 'TDR', 'Acousonde'}, ...  % List of options
-    'Position', [10, 325, 120, 30], ...  % Position of the dropdown
-    'Editable','on');  
+    'Items', {'CATS', 'D2', 'D3', 'D4', 'TDR', 'Acousonde'}, ...
+    'Position', [10, 325, 120, 30], ...
+    'Editable','on');
 
-% add a button to acknowledge, close the window, save the value
-uibutton(fig, 'Position', [20 280 65 30], 'Text', 'OK', 'ButtonPushedFcn', @closebuttonfunction);
+% Variable to store selected value (use assignin later if needed)
+tagtype = '';
 
-% init tagtype
-tagtype = dropdown.Value;
+% Add button with callback that passes dropdown and fig
+uibutton(fig, 'Position', [20 280 65 30], 'Text', 'OK', ...
+    'ButtonPushedFcn', @(btn, event) closebuttonfunction(dropdown, fig));
 
-% wait for user to close the fig
+% Wait for the user
 uiwait(fig);
 
-% called when close button selected-- saves tagtype
-function closebuttonfunction(~, ~)
-    % save outputs
+% Callback function (gets dropdown and fig as inputs)
+function closebuttonfunction(dropdown, fig)
+    % Get selected value from dropdown
     tagtype = dropdown.Value;
+    
+    % Assign to base workspace if needed
+    assignin('base', 'tagtype', tagtype);  % Optional: makes tagtype available after UI closes
 
-    % close the fig and release uiwait
+    % Close the UI
     close(fig);
 end
 
@@ -69,7 +79,7 @@ end
 for i = 1:length(file)
     
 close all; 
-clearvars -except i file path min_log min_surf tagon_thres threshold LogData creator loc tagtype LogData_export
+clearvars -except i file path min_log min_surf tagon_thres threshold surf_da_thres LogData creator loc tagtype LogData_export
 
 %% Step 2A: Import record
 % Check if the user selected a file
@@ -207,8 +217,24 @@ logging_ints.("Logging Start (Seconds)") = tt_sec(logging_start_idxs)';
 logging_ints.("Logging End (Seconds)") = tt_sec(logging_end_idxs)';
 logging_ints.("Logging Duration (Seconds)") = logging_ints.("Logging End (Seconds)") - logging_ints.("Logging Start (Seconds)");
 
+
+% Need to add a check for if the animal accumulates a lot of depth change
+% in the period then this is actually a bunch of single breath surfacings
+for r = height(logging_ints):-1:1
+    accum_depth = sum(abs(diff(p_tagon(logging_ints{r, "Logging Start Index"}:logging_ints{r, "Logging End Index"}))));
+    accum_depth_rate = accum_depth/(logging_ints{r, "Logging Duration (Seconds)"}/60);
+
+    if accum_depth_rate > surf_da_thres
+        % Drop non-logging periods
+        logging_ints(r, :) = [];
+        
+        fprintf('Dropping out logging interval %d because depth accumulation was %.2f m/s\n', ...
+            r, accum_depth_rate);
+    end
+end
+
 % Plot logging surfacings in pink
-if length(logging_surf_rows)>0
+if height(logging_ints)>0
     for r = 1:length(logging_surf_rows)
         p2 = plot(tt_min(logging_ints{r, "Logging Start Index"}-1:logging_ints{r, "Logging End Index"}-1), p_tagon(logging_ints{r, "Logging Start Index"}:logging_ints{r, "Logging End Index"}), 'm-', 'LineWidth', 2);
     end
@@ -250,12 +276,12 @@ jitteredX = x + jitterAmount * (rand(size(x)) - 0.5);  % Random jitter in the x-
 scatter(logging_ints.("Logging Duration (Seconds)"),jitteredX,  'filled', 'MarkerFaceColor', 'k', 'MarkerEdgeColor', 'k')
 alpha(.5); set(gca,'YTickLabel',{' '})
 
-
 print(gcf, strcat(file{i}(1:9), "log_ints"), '-dpdf');
-
 
 %% Step 3: Export data to big table
 
+if height(logging_ints)>0
+    
 tagID = file{i}(1:9);
 spec = file{i}(1:2);
 PHz = fs;
@@ -282,12 +308,19 @@ LogData.("Date Analyzed") = repmat({datetime('now')}, height(logging_ints), 1);
 LogData.("Creator") = repmat({creator}, height(logging_ints), 1);
 
 LogData_export = [LogData_export; LogData];
+end
 
+end
+
+if isempty(LogData_export)
+    disp('There was no logging... not saving anything.');
+else
+    save('LogData_export');
 end
 
 clearvars -except min_log min_surf tagon_thres threshold creator loc tagtype LogData_export
 
-save('LogData_export');
+
 
 %% Step 4: Plot histogram of logging intervals from table
 
