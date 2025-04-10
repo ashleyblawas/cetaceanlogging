@@ -282,45 +282,54 @@ print(gcf, strcat(file{i}(1:9), "log_ints"), '-dpdf');
 
 if height(logging_ints)>0
     
-tagID = file{i}(1:9);
-spec = file{i}(1:2);
-PHz = fs;
-
-TT_sec = 0:1/fs:length(p)/fs-(1/fs);
-
-record_dur = max(TT_sec);
-
-LogData = table(repmat({tagID}, height(logging_ints), 1),...
-    repmat({spec}, height(logging_ints), 1),...
-    repmat({loc}, height(logging_ints), 1),...
-    repmat({tagtype}, height(logging_ints), 1),...
-    repmat({PHz}, height(logging_ints), 1),...
-    repmat({record_dur}, height(logging_ints), 1), 'VariableNames', {'ID', 'Species', 'Location', 'Tag Type', 'PHz', 'Record Duration (Seconds)'});
-
-LogData.StartI = logging_ints.("Logging Start Index")+start_idx-1;
-LogData.EndI = logging_ints.("Logging End Index")+start_idx-1;
-
-LogData.("Logging Start (Seconds)") = TT_sec(logging_start_idxs)';
-LogData.("Logging End (Seconds)") = TT_sec(logging_end_idxs)';
-LogData.("Logging Duration (Seconds)") = logging_ints.("Logging End (Seconds)") - logging_ints.("Logging Start (Seconds)");
-
-LogData.("Date Analyzed") = repmat({datetime('now')}, height(logging_ints), 1);
-LogData.("Creator") = repmat({creator}, height(logging_ints), 1);
-
-LogData_export = [LogData_export; LogData];
+    tagID = file{i}(1:9);
+    spec = file{i}(1:2);
+    PHz = fs;
+    
+    TT_sec = 0:1/fs:length(p)/fs-(1/fs);
+    
+    record_dur = max(TT_sec);
+    
+    LogData = table(repmat({tagID}, height(logging_ints), 1),...
+        repmat({spec}, height(logging_ints), 1),...
+        repmat({loc}, height(logging_ints), 1),...
+        repmat({tagtype}, height(logging_ints), 1),...
+        repmat({PHz}, height(logging_ints), 1),...
+        repmat({record_dur}, height(logging_ints), 1), 'VariableNames', {'ID', 'Species', 'Location', 'Tag Type', 'PHz', 'Record Duration (Seconds)'});
+    
+    LogData.StartI = logging_ints.("Logging Start Index")+start_idx-1;
+    LogData.EndI = logging_ints.("Logging End Index")+start_idx-1;
+    
+    LogData.("Logging Start (Seconds)") = TT_sec(logging_start_idxs)';
+    LogData.("Logging End (Seconds)") = TT_sec(logging_end_idxs)';
+    LogData.("Logging Duration (Seconds)") = logging_ints.("Logging End (Seconds)") - logging_ints.("Logging Start (Seconds)");
+    
+    LogData.("Date Analyzed") = repmat({datetime('now')}, height(logging_ints), 1);
+    LogData.("Creator") = repmat({creator}, height(logging_ints), 1);
+    
+    LogData_export = [LogData_export; LogData];
+    
+else % If no logging
+    
+    LogData.StartI = NaN;
+    LogData.EndI = NaN;
+    
+    LogData.("Logging Start (Seconds)") =  NaN;
+    LogData.("Logging End (Seconds)") =  NaN;
+    LogData.("Logging Duration (Seconds)") =  NaN;
+    
+    LogData.("Date Analyzed") = repmat({datetime('now')}, height(logging_ints), 1);
+    LogData.("Creator") = repmat({creator}, height(logging_ints), 1);
+    
+    LogData_export = [LogData_export; LogData];
+    
 end
 
 end
 
-if isempty(LogData_export)
-    disp('There was no logging... not saving anything.');
-else
-    save('LogData_export');
-end
+save('LogData_export');
 
 clearvars -except min_log min_surf tagon_thres threshold creator loc tagtype LogData_export
-
-
 
 %% Step 4: Plot histogram of logging intervals from table
 
