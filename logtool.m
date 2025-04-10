@@ -14,6 +14,10 @@ min_surf = 1;
 % Set a minimum LOGGING duration (in seconds)!
 min_log = 10;
 
+% Define a theoretical threshold for logging that you are intersted in
+% (e.g., 45 seconds)
+threshold = 45;  
+    
 LogData_export = table();
 
 %% Step 1: Choose prh file(s) to process
@@ -65,7 +69,7 @@ end
 for i = 1:length(file)
     
 close all; 
-clearvars -except i file path min_log min_surf tagon_thres LogData creator loc tagtype LogData_export
+clearvars -except i file path min_log min_surf tagon_thres threshold LogData creator loc tagtype LogData_export
 
 %% Step 2A: Import record
 % Check if the user selected a file
@@ -258,11 +262,14 @@ PHz = fs;
 
 TT_sec = 0:1/fs:length(p)/fs-(1/fs);
 
+record_dur = max(TT_sec);
+
 LogData = table(repmat({tagID}, height(logging_ints), 1),...
     repmat({spec}, height(logging_ints), 1),...
     repmat({loc}, height(logging_ints), 1),...
     repmat({tagtype}, height(logging_ints), 1),...
-    repmat({PHz}, height(logging_ints), 1), 'VariableNames', {'ID', 'Species', 'Location', 'Tag Type', 'PHz'});
+    repmat({PHz}, height(logging_ints), 1),...
+    repmat({record_dur}, height(logging_ints), 1), 'VariableNames', {'ID', 'Species', 'Location', 'Tag Type', 'PHz', 'Record Duration (Seconds)'});
 
 LogData.StartI = logging_ints.("Logging Start Index")+start_idx-1;
 LogData.EndI = logging_ints.("Logging End Index")+start_idx-1;
@@ -278,27 +285,27 @@ LogData_export = [LogData_export; LogData];
 
 end
 
-clearvars -except min_log min_surf tagon_thres creator loc tagtype LogData_export
+clearvars -except min_log min_surf tagon_thres threshold creator loc tagtype LogData_export
 
 save('LogData_export');
 
 %% Step 4: Plot histogram of logging intervals from table
 
 % Drop major outliers using Z-score
-% Calculate the mean and standard deviation of the data
+% 1. Calculate the mean and standard deviation of the data
 meanData = mean(LogData_export.("Logging Duration (Seconds)"));
 stdData = std(LogData_export.("Logging Duration (Seconds)"));
 
-% Define the threshold for outliers (e.g., 3 standard deviations from the mean)
-threshold = 3;
+% 2. Define the threshold for outliers (e.g., 3 standard deviations from the mean)
+sd_threshold = 3;
 
-% Calculate the Z-scores
+% 3. Calculate the Z-scores
 zScores = (LogData_export.("Logging Duration (Seconds)") - meanData) / stdData;
 
-% Identify rows with Z-scores greater than the threshold (outliers)
-outlierRows = abs(zScores) > threshold;
+% 4. Identify rows with Z-scores greater than the threshold (outliers)
+outlierRows = abs(zScores) > sd_threshold;
 
-% Remove the rows that are outliers
+% 5. Remove the rows that are outliers
 LogData_export_noOutliers = LogData_export(~outlierRows, :);
 
 % Plot
@@ -318,13 +325,10 @@ if(nbins > 0)
     % Display grid for better readability
     grid on;
     
-    % Define the threshold value
-    threshold = 45;  % Set the value you want to compare against
-    
-    % Find how many values are greater than the threshold
+    % A. Find how many values are greater than the threshold
     aboveThreshold = LogData_export_noOutliers.("Logging Duration (Seconds)") > threshold;
     
-    % Calculate the percentage of values above the threshold
+    % B. Calculate the percentage of values above the threshold
     percentageAboveThreshold = sum(aboveThreshold) / height(LogData_export_noOutliers) * 100;
     
     % Display the result
