@@ -32,6 +32,7 @@ octave-workspace
 
 # PDFs
 *.pdf
+!**/images/*.pdf
 
 # MATLAB data files (for now)
 *.mat
