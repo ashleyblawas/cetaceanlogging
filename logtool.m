@@ -1,5 +1,5 @@
 % A tool to extract & save logging periods
-function [LogData_export] = logtool()
+function [] = logtool()
 
 %% Setting up global parameters
 clear; close all; clc
@@ -22,9 +22,9 @@ threshold = 45;
 % during a logging period. This is to help prevent detection of periods
 % when the animal is really not loggin but doing little blips at the
 % surface...
-surf_da_thres = 1;
+surf_da_thres = 10;
     
-LogData_export = table();
+LogData = table();
 
 %% Step 1: Choose prh file(s) to process
 [file, path] = uigetfile('*.mat', 'Select a .mat file', 'MultiSelect', 'on');
@@ -79,7 +79,7 @@ end
 for i = 1:length(file)
     
 close all; 
-clearvars -except i file path min_log min_surf tagon_thres threshold surf_da_thres LogData creator loc tagtype LogData_export
+clearvars -except i file path min_log min_surf tagon_thres threshold surf_da_thres LogData_temp creator loc tagtype LogData
 
 %% Step 2A: Import record
 % Check if the user selected a file
@@ -91,10 +91,6 @@ else
     
     % Load the .mat file
     data = load(fullFileName);
-    
-    % Display the contents of the .mat file
-    disp('Contents of the .mat file:');
-    disp(data);
     
     % Save variables from structure
     A = data.A;
@@ -221,12 +217,15 @@ logging_ints.("Logging Duration (Seconds)") = logging_ints.("Logging End (Second
 % Need to add a check for if the animal accumulates a lot of depth change
 % in the period then this is actually a bunch of single breath surfacings
 for r = height(logging_ints):-1:1
-    accum_depth = sum(abs(diff(p_tagon(logging_ints{r, "Logging Start Index"}:logging_ints{r, "Logging End Index"}))));
+    % Smooth depth to 1 Hz
+    p_tagon_smoothed = movmean(p_tagon(logging_ints{r, "Logging Start Index"}:logging_ints{r, "Logging End Index"}), 5*fs);  % smooth over 5 seconds
+
+    accum_depth = sum(abs(diff(p_tagon_smoothed)));
     accum_depth_rate = accum_depth/(logging_ints{r, "Logging Duration (Seconds)"}/60);
 
     if accum_depth_rate > surf_da_thres
         % Drop non-logging periods
-        logging_ints(r, :) = [];
+        %logging_ints(r, :) = [];
         
         fprintf('Dropping out logging interval %d because depth accumulation was %.2f m/s\n', ...
             r, accum_depth_rate);
@@ -247,7 +246,9 @@ end
 p3 = plot(tt_min(logging_ints.("Logging Start Index")-1), p_tagon(logging_ints.("Logging Start Index")), 'g*');
 p4 = plot(tt_min(logging_ints.("Logging End Index")-1), p_tagon(logging_ints.("Logging End Index")), 'r*');
 
+warning('off', 'MATLAB:legend:IgnoringExtraEntries');
 legend([p1 p2 p3 p4],{'Dive depth' , 'Logging', 'Start of surfacing', 'End of surfacing'}, 'Location', 'best')
+warning('on', 'MATLAB:legend:IgnoringExtraEntries');
 
 %% Step 2D: Print out summary data
 
@@ -255,28 +256,31 @@ med_log_int = median(logging_ints.("Logging Duration (Seconds)"));
 log_tot_min = sum(logging_ints.("Logging Duration (Seconds)"))/60;
 log_percent = 100*sum(logging_ints.("Logging Duration (Seconds)"))/tt_sec(end);
 
-annotation('textbox', [0.1, 0.07, 0.5, 0.15], 'String', sprintf('Median Logging Interval (Seconds): %.2f', med_log_int), ...
-    'FontSize', 12, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'bottom', 'EdgeColor', 'none');
-
-annotation('textbox', [0.1, 0.04, 0.5, 0.15], 'String', sprintf('%% Time Spent Logging: %.2f%%', log_percent), ...
-    'FontSize', 12, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'bottom', 'EdgeColor', 'none');
-
-annotation('textbox', [0.1, 0.01, 0.5, 0.1], 'String', sprintf('Total Time Spent Logging: %.2f minutes', log_tot_min), ...
-    'FontSize', 12, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'bottom', 'EdgeColor', 'none');
-
-subplot(313)
-boxplot(logging_ints.("Logging Duration (Seconds)"), 'orientation', 'horizontal', 'Widths', 1); hold on;
-xlabel('Logging Interval Durations (Seconds)');  % X-axis label
-
-x = ones(size(logging_ints.("Logging Duration (Seconds)")));  % Create x-values for the data points (all the same for one group)
-jitterAmount = 0.25;    % Amount of jitter to apply
-jitteredX = x + jitterAmount * (rand(size(x)) - 0.5);  % Random jitter in the x-direction
-
-% Scatter the jittered points
-scatter(logging_ints.("Logging Duration (Seconds)"),jitteredX,  'filled', 'MarkerFaceColor', 'k', 'MarkerEdgeColor', 'k')
-alpha(.5); set(gca,'YTickLabel',{' '})
-
-print(gcf, strcat(file{i}(1:9), "log_ints"), '-dpdf');
+if height(logging_ints)>0
+    
+    annotation('textbox', [0.1, 0.07, 0.5, 0.15], 'String', sprintf('Median Logging Interval (Seconds): %.2f', med_log_int), ...
+        'FontSize', 12, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'bottom', 'EdgeColor', 'none');
+    
+    annotation('textbox', [0.1, 0.04, 0.5, 0.15], 'String', sprintf('%% Time Spent Logging: %.2f%%', log_percent), ...
+        'FontSize', 12, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'bottom', 'EdgeColor', 'none');
+    
+    annotation('textbox', [0.1, 0.01, 0.5, 0.1], 'String', sprintf('Total Time Spent Logging: %.2f minutes', log_tot_min), ...
+        'FontSize', 12, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'bottom', 'EdgeColor', 'none');
+    
+    subplot(313)
+    boxplot(logging_ints.("Logging Duration (Seconds)"), 'orientation', 'horizontal', 'Widths', 1); hold on;
+    xlabel('Logging Interval Durations (Seconds)');  % X-axis label
+    
+    x = ones(size(logging_ints.("Logging Duration (Seconds)")));  % Create x-values for the data points (all the same for one group)
+    jitterAmount = 0.25;    % Amount of jitter to apply
+    jitteredX = x + jitterAmount * (rand(size(x)) - 0.5);  % Random jitter in the x-direction
+    
+    % Scatter the jittered points
+    scatter(logging_ints.("Logging Duration (Seconds)"),jitteredX,  'filled', 'MarkerFaceColor', 'k', 'MarkerEdgeColor', 'k')
+    alpha(.5); set(gca,'YTickLabel',{' '})
+    
+    print(gcf, strcat(file{i}(1:9), "log_ints"), '-dpdf');
+end
 
 %% Step 3: Export data to big table
 
@@ -290,96 +294,120 @@ if height(logging_ints)>0
     
     record_dur = max(TT_sec);
     
-    LogData = table(repmat({tagID}, height(logging_ints), 1),...
+    LogData_temp = table(repmat({tagID}, height(logging_ints), 1),...
         repmat({spec}, height(logging_ints), 1),...
         repmat({loc}, height(logging_ints), 1),...
         repmat({tagtype}, height(logging_ints), 1),...
         repmat({PHz}, height(logging_ints), 1),...
         repmat({record_dur}, height(logging_ints), 1), 'VariableNames', {'ID', 'Species', 'Location', 'Tag Type', 'PHz', 'Record Duration (Seconds)'});
     
-    LogData.StartI = logging_ints.("Logging Start Index")+start_idx-1;
-    LogData.EndI = logging_ints.("Logging End Index")+start_idx-1;
+    LogData_temp.StartI = logging_ints.("Logging Start Index")+start_idx-1;
+    LogData_temp.EndI = logging_ints.("Logging End Index")+start_idx-1;
     
-    LogData.("Logging Start (Seconds)") = TT_sec(logging_start_idxs)';
-    LogData.("Logging End (Seconds)") = TT_sec(logging_end_idxs)';
-    LogData.("Logging Duration (Seconds)") = logging_ints.("Logging End (Seconds)") - logging_ints.("Logging Start (Seconds)");
+    LogData_temp.("Logging Start (Seconds)") = TT_sec(logging_start_idxs)';
+    LogData_temp.("Logging End (Seconds)") = TT_sec(logging_end_idxs)';
+    LogData_temp.("Logging Duration (Seconds)") = logging_ints.("Logging End (Seconds)") - logging_ints.("Logging Start (Seconds)");
     
-    LogData.("Date Analyzed") = repmat({datetime('now')}, height(logging_ints), 1);
-    LogData.("Creator") = repmat({creator}, height(logging_ints), 1);
+    LogData_temp.("Date Analyzed") = repmat({datetime('now')}, height(logging_ints), 1);
+    LogData_temp.("Creator") = repmat({creator}, height(logging_ints), 1);
     
-    LogData_export = [LogData_export; LogData];
+    LogData = [LogData; LogData_temp];
     
 else % If no logging
     
-    LogData.StartI = NaN;
-    LogData.EndI = NaN;
+    tagID = file{i}(1:9);
+    spec = file{i}(1:2);
+    PHz = fs;
     
-    LogData.("Logging Start (Seconds)") =  NaN;
-    LogData.("Logging End (Seconds)") =  NaN;
-    LogData.("Logging Duration (Seconds)") =  NaN;
+    TT_sec = 0:1/fs:length(p)/fs-(1/fs);
     
-    LogData.("Date Analyzed") = repmat({datetime('now')}, height(logging_ints), 1);
-    LogData.("Creator") = repmat({creator}, height(logging_ints), 1);
+    record_dur = max(TT_sec);
     
-    LogData_export = [LogData_export; LogData];
+    LogData_temp = table(repmat({tagID}, 1, 1),...
+        repmat({spec}, 1, 1),...
+        repmat({loc}, 1, 1),...
+        repmat({tagtype}, 1, 1),...
+        repmat({PHz}, 1, 1),...
+        repmat({record_dur}, 1, 1), 'VariableNames', {'ID', 'Species', 'Location', 'Tag Type', 'PHz', 'Record Duration (Seconds)'});
+    
+    LogData_temp.StartI = NaN;
+    LogData_temp.EndI = NaN;
+    
+    LogData_temp.("Logging Start (Seconds)") =  NaN;
+    LogData_temp.("Logging End (Seconds)") =  NaN;
+    LogData_temp.("Logging Duration (Seconds)") =  NaN;
+    
+    LogData_temp.("Date Analyzed") = repmat({datetime('now')},1, 1);
+    LogData_temp.("Creator") = repmat({creator}, 1, 1);
+    
+    LogData = [LogData; LogData_temp];
+    
+    fprintf('%s has no logging in it. No figure is being saved but a row was added to LogData with NaNs.\n', tagID);
     
 end
 
 end
 
-save('LogData_export');
-
-clearvars -except min_log min_surf tagon_thres threshold creator loc tagtype LogData_export
-
-%% Step 4: Plot histogram of logging intervals from table
-
-% Drop major outliers using Z-score
-% 1. Calculate the mean and standard deviation of the data
-meanData = mean(LogData_export.("Logging Duration (Seconds)"));
-stdData = std(LogData_export.("Logging Duration (Seconds)"));
-
-% 2. Define the threshold for outliers (e.g., 3 standard deviations from the mean)
-sd_threshold = 3;
-
-% 3. Calculate the Z-scores
-zScores = (LogData_export.("Logging Duration (Seconds)") - meanData) / stdData;
-
-% 4. Identify rows with Z-scores greater than the threshold (outliers)
-outlierRows = abs(zScores) > sd_threshold;
-
-% 5. Remove the rows that are outliers
-LogData_export_noOutliers = LogData_export(~outlierRows, :);
-
-% Plot
-nbins = sqrt(height(LogData_export_noOutliers));
-
-% if no logging was found nbins will be 0 and histogram will fail so only plot
-% if there is some data. otherwise throw a warning to alert the user.
-if(nbins > 0)
-    figure;  % Create a new figure window
-    histogram(LogData_export_noOutliers.("Logging Duration (Seconds)"), floor(nbins));  % Plot histogram
-    
-    % Add labels and title to the plot
-    xlabel('Logging Duration (Seconds)');
-    ylabel('Frequency');
-    %set(gca, 'XScale', 'log')
-    
-    % Display grid for better readability
-    grid on;
-    
-    % A. Find how many values are greater than the threshold
-    aboveThreshold = LogData_export_noOutliers.("Logging Duration (Seconds)") > threshold;
-    
-    % B. Calculate the percentage of values above the threshold
-    percentageAboveThreshold = sum(aboveThreshold) / height(LogData_export_noOutliers) * 100;
-    
-    % Display the result
-    text(0.5, max(ylim) * 0.95, sprintf('%% of logging intervals > %.0f s: %.2f%%', threshold, percentageAboveThreshold), ...
-        'FontSize', 12, 'Color', 'black');
+if isfile('LogData.mat')
+    save('LogData.mat', 'LogData', '-append');
 else
-    warning('probably no logging was detected, nothing to plot');
+    save('LogData.mat', 'LogData');
 end
 
+clearvars -except LogData threshold
+
+%% Step 4: Plot histogram of ALL logging intervals from table
+
+if all(isnan(LogData.StartI))~= 1
+    
+    % Drop major outliers using Z-score
+    % 1. Calculate the mean and standard deviation of the data
+    meanData = mean(LogData.("Logging Duration (Seconds)"));
+    stdData = std(LogData.("Logging Duration (Seconds)"));
+    
+    % 2. Define the threshold for outliers (e.g., 3 standard deviations from the mean)
+    sd_threshold = 3;
+    
+    % 3. Calculate the Z-scores
+    zScores = (LogData.("Logging Duration (Seconds)") - meanData) / stdData;
+    
+    % 4. Identify rows with Z-scores greater than the threshold (outliers)
+    outlierRows = abs(zScores) > sd_threshold;
+    
+    % 5. Remove the rows that are outliers
+    LogData_noOutliers = LogData(~outlierRows, :);
+    
+    % Plot
+    nbins = sqrt(height(LogData_noOutliers));
+    
+    % if no logging was found nbins will be 0 and histogram will fail so only plot
+    % if there is some data. otherwise throw a warning to alert the user.
+    if(nbins > 0)
+        figure;  % Create a new figure window
+        histogram(LogData_noOutliers.("Logging Duration (Seconds)"), floor(nbins));  % Plot histogram
+        
+        % Add labels and title to the plot
+        xlabel('Logging Duration (Seconds)');
+        ylabel('Frequency');
+        %set(gca, 'XScale', 'log')
+        
+        % Display grid for better readability
+        grid on;
+        
+        % A. Find how many values are greater than the threshold
+        aboveThreshold = LogData_noOutliers.("Logging Duration (Seconds)") > threshold;
+        
+        % B. Calculate the percentage of values above the threshold
+        percentageAboveThreshold = sum(aboveThreshold) / height(LogData_noOutliers) * 100;
+        
+        % Display the result
+        text(0.5, max(ylim) * 0.95, sprintf('%% of logging intervals > %.0f s: %.2f%%', threshold, percentageAboveThreshold), ...
+            'FontSize', 12, 'Color', 'black');
+    else
+        warning('probably no logging was detected, nothing to plot');
+    end
+    
+end
 
 %% end the function
 end
