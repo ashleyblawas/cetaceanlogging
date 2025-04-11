@@ -43,6 +43,10 @@ LogData = logtool();
  - `Date Analyzed` - Date that logtool() was run on this record and data saved
  - `Creator` - Name of data analyzer
 
+The tool will also save any image as a PDF to your working directory with the name `IDlog_ints` (e.g., `gm08_143alog_ints.pdf`) that visualizes the logging intervals in the tag record and prints out several summary statistics.
+
+<embed src="images/gm08_143alog_ints.pdf" type="application/pdf" width="600px" height="400px" />
+
 ## Contributing
 Contributions are welcome! Please open an issue or submit a pull request if you'd like to contribute improvements or bug fixes.
 
