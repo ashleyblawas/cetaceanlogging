@@ -1,6 +1,6 @@
 # logtool
 
-`logtool` is a MATLAB script designed to detect logging intervals from a cetacean tag record. It was built to automatically identify extended periods of resting at the surface from depth data.
+`logtool` is a MATLAB script designed to detect logging intervals from a whale tag record. It was built to automatically identify extended periods of resting at the surface from depth data.
 
 ## Table of Contents
 
